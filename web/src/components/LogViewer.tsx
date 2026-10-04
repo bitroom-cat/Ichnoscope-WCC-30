@@ -1,1 +1,3 @@
-// Purpose: Display step-by-step run logs.
+'use client';
+
+export { LogViewer } from '@/components/primitives/LogViewer';
