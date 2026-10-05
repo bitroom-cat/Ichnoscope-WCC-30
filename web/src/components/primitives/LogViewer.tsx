@@ -6,8 +6,9 @@ import { Search, Copy, Check, Download, ArrowDown } from 'lucide-react';
 import { IconButton } from './Button';
 
 export interface LogEntry {
-  ts: string;
-  level: 'info' | 'warn' | 'error';
+  ts?: string;
+  timestamp?: string;
+  level: 'info' | 'warn' | 'error' | string;
   step: string;
   message: string;
 }
@@ -34,10 +35,11 @@ export function LogViewer({ logs, className }: LogViewerProps) {
     if (levelFilter !== 'all' && log.level !== levelFilter) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
+      const timeStr = log.ts || log.timestamp || '';
       return (
         log.message.toLowerCase().includes(q) ||
         log.step.toLowerCase().includes(q) ||
-        log.ts.includes(q)
+        timeStr.includes(q)
       );
     }
     return true;
@@ -45,7 +47,7 @@ export function LogViewer({ logs, className }: LogViewerProps) {
 
   const handleCopy = () => {
     const text = logs
-      .map((l) => `[${l.ts}] [${l.step.toUpperCase()}] [${l.level.toUpperCase()}] ${l.message}`)
+      .map((l) => `[${l.ts || l.timestamp || ''}] [${l.step.toUpperCase()}] [${(l.level || 'info').toUpperCase()}] ${l.message}`)
       .join('\n');
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -54,7 +56,7 @@ export function LogViewer({ logs, className }: LogViewerProps) {
 
   const handleDownload = () => {
     const text = logs
-      .map((l) => `[${l.ts}] [${l.step.toUpperCase()}] [${l.level.toUpperCase()}] ${l.message}`)
+      .map((l) => `[${l.ts || l.timestamp || ''}] [${l.step.toUpperCase()}] [${(l.level || 'info').toUpperCase()}] ${l.message}`)
       .join('\n');
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -131,7 +133,9 @@ export function LogViewer({ logs, className }: LogViewerProps) {
               key={idx}
               className="flex items-baseline gap-2.5 hover:bg-hover/50 px-1 py-0.5 rounded transition-colors"
             >
-              <span className="text-text-muted text-caption shrink-0 tabular-nums">{log.ts}</span>
+              <span className="text-text-muted text-caption shrink-0 tabular-nums">
+                {log.ts || log.timestamp || ''}
+              </span>
               <span className="text-text-muted text-caption uppercase px-1 rounded bg-surface border border-border-subtle shrink-0">
                 {log.step}
               </span>

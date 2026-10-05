@@ -9,10 +9,11 @@ export interface DiffViewProps {
   diff: string;
   sha?: string;
   message?: string;
+  filename?: string;
   className?: string;
 }
 
-export function DiffView({ diff, sha, message, className }: DiffViewProps) {
+export function DiffView({ diff, sha, message, filename, className }: DiffViewProps) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = () => {
@@ -25,11 +26,12 @@ export function DiffView({ diff, sha, message, className }: DiffViewProps) {
 
   return (
     <div className={cn('rounded border border-border-subtle bg-inset overflow-hidden text-xs font-mono', className)}>
-      {(sha || message) && (
+      {(sha || message || filename) && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-surface/50 text-text-secondary">
           <div className="flex items-center gap-2 truncate">
             <GitCommit className="w-3.5 h-3.5 text-accent shrink-0" />
             {sha && <span className="font-semibold text-accent">{sha.slice(0, 7)}</span>}
+            {filename && <span className="font-semibold text-text-primary">{filename}</span>}
             {message && <span className="truncate text-text-muted">{message}</span>}
           </div>
           <IconButton label="Copy git diff" size="sm" onClick={handleCopy}>

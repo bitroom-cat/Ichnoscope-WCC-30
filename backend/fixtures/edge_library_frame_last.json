@@ -1,0 +1,39 @@
+{
+  "_ichnoscope": {
+    "note": "HAND-WRITTEN fixture. Replace with a real Sentry capture.",
+    "event_count": 5,
+    "users_affected": 2
+  },
+  "event_id": "e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2",
+  "platform": "python",
+  "timestamp": "2026-10-04T14:30:00Z",
+  "environment": "staging",
+  "release": "1.2.3",
+  "exception": {
+    "values": [
+      {
+        "type": "ValueError",
+        "value": "Negative stock quantity",
+        "stacktrace": {
+          "frames": [
+            {
+              "filename": "/app/services/inventory.py",
+              "abs_path": "/app/services/inventory.py",
+              "function": "reserve_stock",
+              "lineno": 112,
+              "in_app": true,
+              "context_line": "validate_quantity(quantity)"
+            },
+            {
+              "filename": "/usr/local/lib/python3.11/site-packages/pydantic/main.py",
+              "abs_path": "/usr/local/lib/python3.11/site-packages/pydantic/main.py",
+              "function": "validate",
+              "lineno": 341,
+              "in_app": false
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

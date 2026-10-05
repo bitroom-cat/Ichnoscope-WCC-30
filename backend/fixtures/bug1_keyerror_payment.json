@@ -1,0 +1,56 @@
+{
+  "_ichnoscope": {
+    "note": "HAND-WRITTEN fixture. Replace with a real Sentry capture.",
+    "event_count": 120,
+    "users_affected": 63
+  },
+  "action": "created",
+  "data": {
+    "issue": {
+      "count": "120",
+      "userCount": "63"
+    },
+    "event": {
+      "event_id": "8c3b4e6a1d2f4a5b9c0d1e2f3a4b5c6d",
+      "platform": "python",
+      "timestamp": "2026-10-04T12:00:00Z",
+      "environment": "production",
+      "release": "a14b9f2c7d3e5f60718293a4b5c6d7e8f9012345",
+      "exception": {
+        "values": [
+          {
+            "type": "KeyError",
+            "value": "'stripe_token'",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "flask/app.py",
+                  "abs_path": "/usr/local/lib/python3.11/site-packages/flask/app.py",
+                  "function": "wsgi_app",
+                  "lineno": 2077,
+                  "in_app": false
+                },
+                {
+                  "filename": "routes/checkout.py",
+                  "abs_path": "/app/routes/checkout.py",
+                  "function": "process_checkout",
+                  "lineno": 41,
+                  "in_app": true,
+                  "context_line": "charge_result = charge_card(order_data)"
+                },
+                {
+                  "filename": "services/payment.py",
+                  "abs_path": "/app/services/payment.py",
+                  "function": "charge_card",
+                  "lineno": 84,
+                  "in_app": true,
+                  "context_line": "token = payload[\"stripe_token\"]"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
