@@ -56,6 +56,36 @@ export default function MarketingHomePage() {
         </div>
       </section>
 
+      {/* DEMO VIDEO SHOWCASE */}
+      <section className="pb-16 sm:pb-24 -mt-6">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative mx-auto max-w-5xl rounded-xl border border-border-subtle bg-surface/80 p-2 sm:p-4 shadow-2xl backdrop-blur-sm">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-danger/80 inline-block" />
+                <span className="w-3 h-3 rounded-full bg-warning/80 inline-block" />
+                <span className="w-3 h-3 rounded-full bg-success/80 inline-block" />
+                <span className="text-caption font-mono text-text-muted ml-2">ichnoscope-demo-walkthrough</span>
+              </div>
+              <span className="text-caption font-mono text-accent">Product Demo & Guide</span>
+            </div>
+            <div className="relative w-full aspect-video overflow-hidden rounded-lg bg-black">
+              <iframe
+                width="1059"
+                height="595"
+                src="https://www.youtube.com/embed/NsmXi0lnl7Y"
+                title="ichnoscope"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 2. THE PROBLEM STRIP */}
       <section className="py-16 border-t border-border-subtle bg-surface/50">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 space-y-8">

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { DemoVideoPopup } from '@/components/DemoVideoPopup';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-canvas text-primary font-sans antialiased selection:bg-accent/20 selection:text-accent">
         <ThemeProvider>
           {children}
+          <DemoVideoPopup />
         </ThemeProvider>
       </body>
     </html>
