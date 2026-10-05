@@ -40,6 +40,8 @@ export interface SystemSettings {
   dry_run: boolean;
   slack_channel: string;
   slack_enabled: boolean;
+  slack_webhook_url?: string;
+  admin_token?: string;
   auto_comment_duplicates: boolean;
 }
 
@@ -296,6 +298,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   dry_run: false,
   slack_channel: '#eng-incidents',
   slack_enabled: true,
+  slack_webhook_url: '',
+  admin_token: '',
   auto_comment_duplicates: true,
 };
 
@@ -527,10 +531,12 @@ export const api = {
           p1_events: data.p1_events || DEFAULT_SETTINGS.p1_events,
           p2_users: data.p2_users || DEFAULT_SETTINGS.p2_users,
           p2_events: data.p2_events || DEFAULT_SETTINGS.p2_events,
-          llm_provider: 'ollama (qwen3:8b)',
+          llm_provider: 'groq/openai/gpt-oss-120b',
           dry_run: data.dry_run ?? DEFAULT_SETTINGS.dry_run,
           slack_channel: '#eng-incidents',
-          slack_enabled: data.slack_webhook_url === 'configured',
+          slack_enabled: Boolean(data.slack_webhook_url),
+          slack_webhook_url: data.slack_webhook_url || '',
+          admin_token: data.admin_token || '',
           auto_comment_duplicates: true,
         };
       }
@@ -548,10 +554,59 @@ export const api = {
   },
 
   updateSettings: async (settings: SystemSettings): Promise<SystemSettings> => {
+    try {
+      const payload: Record<string, any> = {
+        github_repository: settings.github_repo,
+        fallback_assignee: settings.fallback_assignee,
+        path_prefix_strip: settings.path_prefix_strip,
+        window_hours: settings.window_hours,
+        p1_users: settings.p1_users,
+        p1_events: settings.p1_events,
+        p2_users: settings.p2_users,
+        p2_events: settings.p2_events,
+        dry_run: settings.dry_run,
+        slack_webhook_url: settings.slack_webhook_url,
+        admin_token: settings.admin_token,
+      };
+      const res = await fetch(`${BACKEND_URL}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updated: SystemSettings = {
+          ...settings,
+          github_repo: data.github_repository ?? settings.github_repo,
+          fallback_assignee: data.fallback_assignee ?? settings.fallback_assignee,
+          slack_webhook_url: data.slack_webhook_url ?? settings.slack_webhook_url,
+          admin_token: data.admin_token ?? settings.admin_token,
+        };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('ichnoscope_settings', JSON.stringify(updated));
+        }
+        return updated;
+      }
+    } catch {
+      // Fallback to local storage if offline
+    }
     if (typeof window !== 'undefined') {
       localStorage.setItem('ichnoscope_settings', JSON.stringify(settings));
     }
     return settings;
+  },
+
+  testSlackWebhook: async (webhookUrl?: string): Promise<{ ok: boolean; message: string }> => {
+    const res = await fetch(`${BACKEND_URL}/api/notifications/slack/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook_url: webhookUrl || undefined }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || `Failed to send test alert (${res.status})`);
+    }
+    return { ok: true, message: data.message || 'Test notification delivered to Slack successfully!' };
   },
 
   isAuthenticated: (): boolean => {

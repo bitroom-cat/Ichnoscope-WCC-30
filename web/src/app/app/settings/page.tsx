@@ -3,12 +3,29 @@
 import React, { useState, useEffect } from 'react';
 import { api, SystemSettings } from '@/lib/api';
 import { Button } from '@/components/primitives/Button';
-import { Settings, Save, Check, GitBranch, Cpu, Bell, Sliders } from 'lucide-react';
+import {
+  Settings,
+  Save,
+  Check,
+  GitBranch,
+  Cpu,
+  Bell,
+  Sliders,
+  Send,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [testingSlack, setTestingSlack] = useState(false);
+  const [slackFeedback, setSlackFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showAdminToken, setShowAdminToken] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -29,6 +46,23 @@ export default function SettingsPage() {
     await api.updateSettings(settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleTestSlack = async () => {
+    if (!settings) return;
+    setTestingSlack(true);
+    setSlackFeedback(null);
+    try {
+      const res = await api.testSlackWebhook(settings.slack_webhook_url);
+      setSlackFeedback({ type: 'success', message: res.message || 'Test notification sent to Slack successfully!' });
+    } catch (err: any) {
+      setSlackFeedback({
+        type: 'error',
+        message: err.message || 'Failed to dispatch Slack test alert. Please verify your Webhook URL.',
+      });
+    } finally {
+      setTestingSlack(false);
+    }
   };
 
   if (loading || !settings) {
@@ -231,49 +265,161 @@ export default function SettingsPage() {
         </div>
 
         {/* Section 4: Notifications */}
+        <div className="p-5 sm:p-6 rounded-lg border border-border-subtle bg-surface shadow-xs space-y-5">
+          <div className="border-b border-border-subtle pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-dense font-semibold text-primary flex items-center gap-2">
+                <Bell className="w-4 h-4 text-success" />
+                Slack Notifications & Webhook Dispatch
+              </h2>
+              <p className="text-caption text-secondary mt-0.5">
+                Dispatch automated incident summaries to Slack channels when regressions are triaged.
+              </p>
+            </div>
+            {settings.slack_webhook_url && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-caption font-medium bg-success-subtle text-success border border-success/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
+                Webhook Configured
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-secondary block font-medium mb-1 text-dense">
+                Slack Incoming Webhook URL (<code className="font-mono text-accent">SLACK_WEBHOOK_URL</code>)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="password"
+                  value={settings.slack_webhook_url || ''}
+                  onChange={(e) => setSettings({ ...settings, slack_webhook_url: e.target.value })}
+                  placeholder="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+                  className="flex-1 bg-canvas border border-border-subtle rounded-md px-3 py-2 text-primary font-mono text-dense focus:outline-none focus:border-accent"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={testingSlack || (!settings.slack_webhook_url && !settings.slack_enabled)}
+                  onClick={handleTestSlack}
+                  className="gap-2 whitespace-nowrap shrink-0"
+                >
+                  {testingSlack ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Testing Dispatch...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 text-accent" />
+                      Send Test Alert
+                    </>
+                  )}
+                </Button>
+              </div>
+              <span className="text-caption text-text-muted mt-1 block">
+                Incoming webhook generated in your Slack workspace apps directory. Click &quot;Send Test Alert&quot; to verify live connectivity immediately.
+              </span>
+            </div>
+
+            {slackFeedback && (
+              <div
+                className={`p-3.5 rounded-md border flex items-start gap-2.5 text-dense animate-fadeIn ${
+                  slackFeedback.type === 'success'
+                    ? 'bg-success-subtle/50 border-success/30 text-success'
+                    : 'bg-danger-subtle/50 border-danger/30 text-danger'
+                }`}
+              >
+                {slackFeedback.type === 'success' ? (
+                  <Check className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium text-caption">
+                    {slackFeedback.type === 'success' ? 'Alert Delivered' : 'Delivery Failed'}
+                  </p>
+                  <p className="text-caption opacity-90 mt-0.5">{slackFeedback.message}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-dense pt-1">
+              <div>
+                <label className="text-secondary block font-medium mb-1">
+                  Slack Channel Name
+                </label>
+                <input
+                  type="text"
+                  value={settings.slack_channel}
+                  onChange={(e) => setSettings({ ...settings, slack_channel: e.target.value })}
+                  placeholder="#eng-incidents"
+                  className="w-full bg-canvas border border-border-subtle rounded-md px-3 py-2 text-primary font-mono focus:outline-none focus:border-accent"
+                />
+                <span className="text-caption text-text-muted mt-1 block">Default display channel name</span>
+              </div>
+
+              <div className="space-y-2.5 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={settings.slack_enabled}
+                    onChange={(e) => setSettings({ ...settings, slack_enabled: e.target.checked })}
+                    className="rounded border-border-subtle text-accent focus:ring-accent h-4 w-4"
+                  />
+                  <span className="text-dense">Post triage summary to Slack automatically</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={settings.auto_comment_duplicates}
+                    onChange={(e) => setSettings({ ...settings, auto_comment_duplicates: e.target.checked })}
+                    className="rounded border-border-subtle text-accent focus:ring-accent h-4 w-4"
+                  />
+                  <span className="text-dense">Suppress repeat events (max 1 comment per 15 min)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 5: Security & Admin Authentication */}
         <div className="p-5 sm:p-6 rounded-lg border border-border-subtle bg-surface shadow-xs space-y-4">
           <div className="border-b border-border-subtle pb-3">
             <h2 className="text-dense font-semibold text-primary flex items-center gap-2">
-              <Bell className="w-4 h-4 text-success" />
-              Notifications & Storm Protection
+              <Lock className="w-4 h-4 text-warning" />
+              Security &amp; Admin Token
             </h2>
+            <p className="text-caption text-secondary mt-0.5">
+              Secure administrative operations, settings updates, and triage manual overrides.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-dense">
-            <div>
-              <label className="text-secondary block font-medium mb-1">
-                Slack Channel Name
-              </label>
+          <div className="text-dense">
+            <label className="text-secondary block font-medium mb-1">
+              Admin Access Token (<code className="font-mono text-accent">ADMIN_TOKEN</code>)
+            </label>
+            <div className="relative max-w-lg">
               <input
-                type="text"
-                value={settings.slack_channel}
-                onChange={(e) => setSettings({ ...settings, slack_channel: e.target.value })}
-                className="w-full bg-canvas border border-border-subtle rounded-md px-3 py-2 text-primary font-mono focus:outline-none focus:border-accent"
+                type={showAdminToken ? 'text' : 'password'}
+                value={settings.admin_token || ''}
+                onChange={(e) => setSettings({ ...settings, admin_token: e.target.value })}
+                placeholder="ichnoscope-secret-admin-token"
+                className="w-full bg-canvas border border-border-subtle rounded-md pl-3 pr-10 py-2 text-primary font-mono focus:outline-none focus:border-accent"
               />
-              <span className="text-caption text-text-muted mt-1 block">Best-effort dispatch</span>
+              <button
+                type="button"
+                onClick={() => setShowAdminToken(!showAdminToken)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-muted hover:text-primary transition-colors"
+                title={showAdminToken ? 'Hide token' : 'Show token'}
+              >
+                {showAdminToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
-
-            <div className="space-y-2 pt-2">
-              <label className="flex items-center gap-2 cursor-pointer text-secondary">
-                <input
-                  type="checkbox"
-                  checked={settings.slack_enabled}
-                  onChange={(e) => setSettings({ ...settings, slack_enabled: e.target.checked })}
-                  className="rounded border-border-subtle text-accent focus:ring-accent h-4 w-4"
-                />
-                <span className="text-dense">Post triage summary to Slack</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer text-secondary">
-                <input
-                  type="checkbox"
-                  checked={settings.auto_comment_duplicates}
-                  onChange={(e) => setSettings({ ...settings, auto_comment_duplicates: e.target.checked })}
-                  className="rounded border-border-subtle text-accent focus:ring-accent h-4 w-4"
-                />
-                <span className="text-dense">Suppress repeat events (max 1 comment per 15 min)</span>
-              </label>
-            </div>
+            <span className="text-caption text-text-muted mt-1.5 block">
+              Set or rotate the authentication token used for API route authorization and administrative operations.
+            </span>
           </div>
         </div>
 

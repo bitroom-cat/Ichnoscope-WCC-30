@@ -127,6 +127,7 @@ class Settings(BaseModel):
     slack_webhook_url: SecretStr | None = None
     dry_run: bool = True
     window_hours: int = 24
+    admin_token: SecretStr | None = None
     use_stub_github: bool = False
     use_stub_llm: bool = False
 
@@ -245,6 +246,7 @@ class Settings(BaseModel):
             "github_repo_name": self.github_repo_name,
             "sentry_client_secret": "configured" if self.sentry_client_secret is not None else "missing",
             "slack_webhook_url": "configured" if self.slack_webhook_url is not None else "missing",
+            "admin_token": "configured" if self.admin_token is not None else "missing",
             "fallback_assignee": self.fallback_assignee,
             "path_prefix_strip": self.path_prefix_strip,
             "dry_run": self.dry_run,
@@ -282,6 +284,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     path_prefix_strip = raw_path_prefix if not raw_path_prefix or raw_path_prefix.endswith("/") else f"{raw_path_prefix}/"
     fallback_assignee = _parse_str(env.get("FALLBACK_ASSIGNEE"))
     slack_webhook_url = _parse_secret(env.get("SLACK_WEBHOOK_URL"))
+    admin_token = _parse_secret(env.get("ADMIN_TOKEN"))
     dry_run = _parse_bool("DRY_RUN", env.get("DRY_RUN"), default=True)
     window_hours = _parse_int("WINDOW_HOURS", env.get("WINDOW_HOURS"), default=24, min_val=1)
     use_stub_github = _parse_bool("USE_STUB_GITHUB", env.get("USE_STUB_GITHUB"), default=False)
@@ -320,6 +323,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         path_prefix_strip=path_prefix_strip,
         fallback_assignee=fallback_assignee,
         slack_webhook_url=slack_webhook_url,
+        admin_token=admin_token,
         dry_run=dry_run,
         window_hours=window_hours,
         use_stub_github=use_stub_github,

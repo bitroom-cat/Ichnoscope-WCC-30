@@ -1,8 +1,8 @@
-"""Administrative and dashboard REST API endpoints for incident run reviews."""
-
+import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from ichnoscope.config import get_settings
 from ichnoscope.publisher import publish_issue
@@ -138,11 +138,149 @@ def api_reject_run(run_id: str, body: RejectRequest | None = None) -> dict[str, 
     return {"status": "rejected"}
 
 
+class SettingsUpdateRequest(BaseModel):
+    github_repository: str | None = None
+    fallback_assignee: str | None = None
+    path_prefix_strip: str | None = None
+    window_hours: int | None = None
+    p1_users: int | None = None
+    p1_events: int | None = None
+    p2_users: int | None = None
+    p2_events: int | None = None
+    dry_run: bool | None = None
+    slack_webhook_url: str | None = None
+    admin_token: str | None = None
+
+
+class SlackTestRequest(BaseModel):
+    webhook_url: str | None = None
+
+
+def _persist_env_update(updates: dict[str, str]) -> None:
+    """Best-effort persistence of updated env vars back to .env file if it exists."""
+    for candidate in [Path("backend/.env"), Path(".env")]:
+        if candidate.is_file():
+            try:
+                content = candidate.read_text(encoding="utf-8")
+                lines = content.splitlines()
+                updated_lines: list[str] = []
+                keys_found = set()
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        key = stripped.split("=", 1)[0].strip()
+                        if key in updates:
+                            updated_lines.append(f"{key}={updates[key]}")
+                            keys_found.add(key)
+                            continue
+                    updated_lines.append(line)
+                for k, v in updates.items():
+                    if k not in keys_found:
+                        updated_lines.append(f"{k}={v}")
+                candidate.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+            except Exception:
+                pass
+            break
+
+
 @router.get("/settings")
 def api_get_settings() -> dict[str, Any]:
     """Return sanitized system settings."""
     settings = get_settings()
-    return settings.safe_summary()
+    summary = settings.safe_summary()
+    if settings.slack_webhook_url:
+        summary["slack_webhook_url"] = settings.slack_webhook_url.get_secret_value()
+    if settings.admin_token:
+        summary["admin_token"] = settings.admin_token.get_secret_value()
+    return summary
+
+
+@router.post("/settings")
+def api_update_settings(req: SettingsUpdateRequest) -> dict[str, Any]:
+    """Dynamically update system settings (including Slack Webhook URL and repository scoping)."""
+    updates: dict[str, str] = {}
+    if req.slack_webhook_url is not None:
+        val = req.slack_webhook_url.strip()
+        os.environ["SLACK_WEBHOOK_URL"] = val
+        updates["SLACK_WEBHOOK_URL"] = val
+    if req.github_repository is not None:
+        val = req.github_repository.strip()
+        os.environ["GITHUB_REPOSITORY"] = val
+        updates["GITHUB_REPOSITORY"] = val
+    if req.fallback_assignee is not None:
+        val = req.fallback_assignee.strip()
+        os.environ["FALLBACK_ASSIGNEE"] = val
+        updates["FALLBACK_ASSIGNEE"] = val
+    if req.path_prefix_strip is not None:
+        val = req.path_prefix_strip.strip()
+        os.environ["PATH_PREFIX_STRIP"] = val
+        updates["PATH_PREFIX_STRIP"] = val
+    if req.dry_run is not None:
+        val = "true" if req.dry_run else "false"
+        os.environ["DRY_RUN"] = val
+        updates["DRY_RUN"] = val
+    if req.p1_users is not None:
+        val = str(req.p1_users)
+        os.environ["P1_USERS"] = val
+        updates["P1_USERS"] = val
+    if req.p1_events is not None:
+        val = str(req.p1_events)
+        os.environ["P1_EVENTS"] = val
+        updates["P1_EVENTS"] = val
+    if req.p2_users is not None:
+        val = str(req.p2_users)
+        os.environ["P2_USERS"] = val
+        updates["P2_USERS"] = val
+    if req.p2_events is not None:
+        val = str(req.p2_events)
+        os.environ["P2_EVENTS"] = val
+        updates["P2_EVENTS"] = val
+    if req.admin_token is not None:
+        val = req.admin_token.strip()
+        os.environ["ADMIN_TOKEN"] = val
+        updates["ADMIN_TOKEN"] = val
+
+    if updates:
+        _persist_env_update(updates)
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    summary = settings.safe_summary()
+    if settings.slack_webhook_url:
+        summary["slack_webhook_url"] = settings.slack_webhook_url.get_secret_value()
+    if settings.admin_token:
+        summary["admin_token"] = settings.admin_token.get_secret_value()
+    return summary
+
+
+@router.post("/notifications/slack/test")
+def api_test_slack(req: SlackTestRequest | None = None) -> dict[str, Any]:
+    """Dispatch an immediate test alert to Slack to verify webhook connectivity."""
+    from ichnoscope.notify import notify_slack
+
+    settings = get_settings()
+    target_url = (req.webhook_url.strip() if req and req.webhook_url else None) or (
+        settings.slack_webhook_url.get_secret_value() if settings.slack_webhook_url else None
+    )
+    if not target_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No Slack Webhook URL configured. Please enter a valid Slack webhook URL in Settings.",
+        )
+
+    ok = notify_slack(
+        title="Ichnoscope Incident Alert Test",
+        severity="P2-High",
+        assignee="ichnoscope-bot",
+        issue_url="https://github.com/vanshikarana06/ichnoscope_demo_we_app/issues/1",
+        webhook_url=target_url,
+    )
+    if ok:
+        return {"ok": True, "message": "Test notification delivered to Slack successfully!"}
+    raise HTTPException(
+        status_code=502,
+        detail="Slack returned an error. Please verify the Webhook URL format and channel permissions.",
+    )
 
 
 @router.get("/health")
