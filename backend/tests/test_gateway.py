@@ -49,6 +49,15 @@ def test_webhook_sentry_valid(monkeypatch):
     assert resp.status_code == 200
     assert resp.json() == {"status": "accepted"}
 
+    # Verify /api/webhook/sentry alias
+    resp_alias = client.post(
+        "/api/webhook/sentry",
+        content=body,
+        headers={"sentry-hook-signature": sig, "Content-Type": "application/json"},
+    )
+    assert resp_alias.status_code == 200
+    assert resp_alias.json() == {"status": "accepted"}
+
 
 def test_webhook_sentry_bad_signature(monkeypatch):
     monkeypatch.setenv("SENTRY_CLIENT_SECRET", "sentry-secret-999")

@@ -7,8 +7,11 @@ from ichnoscope.config import load_settings
 from ichnoscope.pipeline import run_pipeline
 
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+
+
 def _load_fixture() -> dict:
-    fixture_path = Path("backend/fixtures/bug1_keyerror_payment.json")
+    fixture_path = FIXTURES_DIR / "bug1_keyerror_payment.json"
     return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 

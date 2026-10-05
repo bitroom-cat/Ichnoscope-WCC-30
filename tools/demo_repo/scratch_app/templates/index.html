@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apex Storefront & Failure Diagnostics Playground</title>
+  <style>
+    :root {
+      --bg: #090a0f;
+      --card-bg: #12141c;
+      --card-border: #1e2230;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --success: #10b981;
+      --terminal-bg: #050608;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 32px 20px; line-height: 1.5; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 24px; margin-bottom: 32px; }
+    .logo { font-size: 22px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+    .badge { font-size: 12px; background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 10px; border-radius: 9999px; }
+    
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+    .card h3 { font-size: 16px; margin-bottom: 8px; color: #fff; }
+    .card p { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; flex-grow: 1; }
+    .meta-code { font-family: monospace; font-size: 11px; background: #000; padding: 2px 6px; border-radius: 4px; color: #cbd5e1; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s; width: 100%; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover { background: var(--danger); color: #fff; }
+
+    .section-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .section-title span { color: var(--text-muted); font-size: 13px; font-weight: 400; }
+
+    .terminal-container { background: var(--terminal-bg); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; margin-top: 24px; }
+    .terminal-header { background: #0c0e14; padding: 10px 16px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); font-family: monospace; }
+    .terminal-body { padding: 16px; min-height: 200px; max-height: 380px; overflow-y: auto; font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 12px; color: #38bdf8; white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <span>⚡ Apex Storefront Service</span>
+        <span class="badge">Live :5000</span>
+      </div>
+      <div>
+        <a href="/healthz" target="_blank" style="color: var(--primary); font-size: 13px; text-decoration: none; font-weight: 500;">Probe /healthz ↗</a>
+      </div>
+    </header>
+
+    <h2 class="section-title">
+      Normal Storefront Workflows <span>(Happy-Path Operations)</span>
+    </h2>
+    <div class="grid">
+      <div class="card">
+        <div>
+          <h3>🛒 Active Cart Total</h3>
+          <p>Calculates item quantity and gross subtotal for customer cart <span class="meta-code">cart_101</span>.</p>
+        </div>
+        <button class="btn btn-primary" onclick="executeReq('GET', '/cart/total?cart_id=cart_101')">Fetch Cart Total</button>
+      </div>
+
+      <div class="card">
+        <div>
+          <h3>💳 Valid Checkout</h3>
+          <p>Submits authorization for $45.00 with verified credit card token <span class="meta-code">tok_visa</span>.</p>
+        </div>
+        <button class="btn btn-primary" onclick="executeReq('POST', '/checkout', {amount: 4500, currency: 'usd', stripe_token: 'tok_visa'})">Submit Order ($45)</button>
+      </div>
+
+      <div class="card">
+        <div>
+          <h3>📦 Warehouse Reservation</h3>
+          <p>Allocates stock units for in-stock item <span class="meta-code">SKU-IN-STOCK</span>.</p>
+        </div>
+        <button class="btn btn-primary" onclick="executeReq('POST', '/inventory/reserve', {sku: 'SKU-IN-STOCK', quantity: 2})">Reserve 2 Units</button>
+      </div>
+
+      <div class="card">
+        <div>
+          <h3>🚚 Shipping Rate Quote</h3>
+          <p>Estimates courier delivery cost for a standard 2.5kg package to the United States.</p>
+        </div>
+        <button class="btn btn-primary" onclick="executeReq('POST', '/shipping/quote', {weight: 2.5, destination: 'US'})">Estimate Rate</button>
+      </div>
+
+      <div class="card">
+        <div>
+          <h3>🏷️ Promotional Voucher</h3>
+          <p>Redeems verified 10% promotional coupon <span class="meta-code">WELCOME10</span> on pending total.</p>
+        </div>
+        <button class="btn btn-primary" onclick="executeReq('POST', '/discounts/apply', {codes: ['WELCOME10'], subtotal: 5000})">Redeem Promo</button>
+      </div>
+    </div>
+
+    <h2 class="section-title" style="margin-top: 40px; color: #f87171;">
+      Incident Diagnostics & Defect Simulation <span>(Triggers Captured by Observability SDK)</span>
+    </h2>
+    <div class="grid">
+      <div class="card" style="border-color: rgba(239, 68, 68, 0.3);">
+        <div>
+          <h3 style="color: #fca5a5;">1. Payment KeyError</h3>
+          <p>Omits required token parameter, triggering <span class="meta-code">KeyError: 'stripe_token'</span> at line 84 in payment service.</p>
+        </div>
+        <button class="btn btn-danger" onclick="executeReq('POST', '/checkout', {amount: 4500, currency: 'usd'})">Trigger KeyError</button>
+      </div>
+
+      <div class="card" style="border-color: rgba(239, 68, 68, 0.3);">
+        <div>
+          <h3 style="color: #fca5a5;">2. Cart AttributeError</h3>
+          <p>Requests unknown cart ID, triggering <span class="meta-code">AttributeError: 'NoneType' has no attribute 'items'</span> at line 57 in cart service.</p>
+        </div>
+        <button class="btn btn-danger" onclick="executeReq('GET', '/cart/total?cart_id=unknown')">Trigger AttributeError</button>
+      </div>
+
+      <div class="card" style="border-color: rgba(239, 68, 68, 0.3);">
+        <div>
+          <h3 style="color: #fca5a5;">3. Inventory ValueError</h3>
+          <p>Reserves backordered SKU with feed quantity "N/A", triggering <span class="meta-code">ValueError: invalid literal for int()</span> at line 112.</p>
+        </div>
+        <button class="btn btn-danger" onclick="executeReq('POST', '/inventory/reserve', {sku: 'SKU-BACKORDER', quantity: 1})">Trigger ValueError</button>
+      </div>
+
+      <div class="card" style="border-color: rgba(239, 68, 68, 0.3);">
+        <div>
+          <h3 style="color: #fca5a5;">4. Shipping ZeroDivisionError</h3>
+          <p>Submits delivery estimate with weight 0, triggering <span class="meta-code">ZeroDivisionError: float division by zero</span> at line 40.</p>
+        </div>
+        <button class="btn btn-danger" onclick="executeReq('POST', '/shipping/quote', {weight: 0, destination: 'US'})">Trigger ZeroDivision</button>
+      </div>
+
+      <div class="card" style="border-color: rgba(239, 68, 68, 0.3);">
+        <div>
+          <h3 style="color: #fca5a5;">5. Discount IndexError</h3>
+          <p>Applies unmatched promo vouchers, triggering <span class="meta-code">IndexError: list index out of range</span> at line 49 in discount service.</p>
+        </div>
+        <button class="btn btn-danger" onclick="executeReq('POST', '/discounts/apply', {codes: ['INVALID99'], subtotal: 5000})">Trigger IndexError</button>
+      </div>
+    </div>
+
+    <div class="terminal-container">
+      <div class="terminal-header">
+        <span>LIVE REQUEST & TELEMETRY LOG</span>
+        <span id="term-status">READY</span>
+      </div>
+      <div class="terminal-body" id="console-output">// Click any button above to test service execution and view diagnostics.</div>
+    </div>
+  </div>
+
+  <script>
+    async function executeReq(method, url, body) {
+      const output = document.getElementById('console-output');
+      const statusSpan = document.getElementById('term-status');
+      
+      statusSpan.textContent = "SENDING...";
+      statusSpan.style.color = "#fbbf24";
+
+      const start = performance.now();
+      output.textContent = `>>> ${method} ${url}\n${body ? JSON.stringify(body, null, 2) + '\n' : ''}Processing request...`;
+
+      try {
+        const opts = {
+          method: method,
+          headers: { 'Content-Type': 'application/json' }
+        };
+        if (body) opts.body = JSON.stringify(body);
+
+        const res = await fetch(url, opts);
+        const duration = (performance.now() - start).toFixed(1);
+        const text = await res.text();
+
+        statusSpan.textContent = `STATUS: ${res.status} (${duration}ms)`;
+        statusSpan.style.color = res.ok ? "#34d399" : "#f87171";
+
+        let formatted = text;
+        try {
+          formatted = JSON.stringify(JSON.parse(text), null, 2);
+        } catch(e) {}
+
+        output.textContent = `>>> ${method} ${url}\nHTTP ${res.status} (${duration}ms)\n\n${formatted}`;
+      } catch (err) {
+        statusSpan.textContent = "NETWORK ERROR";
+        statusSpan.style.color = "#f87171";
+        output.textContent = `>>> ${method} ${url}\nConnection failure: ${err.message}\n(Ensure server is running on port 5000)`;
+      }
+    }
+  </script>
+</body>
+</html>

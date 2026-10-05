@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: ichnoscope-backend
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn ichnoscope.main:app --host 0.0.0.0 --port $PORT --app-dir backend
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: GITHUB_REPOSITORY
+        value: vanshikarana06/ichnoscope_demo_we_app
+      - key: USE_STUB_GITHUB
+        value: "false"
+      - key: USE_STUB_LLM
+        value: "false"
+      - key: DRY_RUN
+        value: "false"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: SENTRY_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false

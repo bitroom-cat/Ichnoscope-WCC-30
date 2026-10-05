@@ -5,7 +5,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from ichnoscope.db import init_db
+from ichnoscope.db import get_db, init_db
 from ichnoscope.models import RunState
 
 
@@ -20,7 +20,7 @@ def save_run(
     ts = now if now is not None else time.time()
     state_json = json.dumps(state.model_dump(mode="json"))
 
-    with sqlite3.connect(path) as conn:
+    with get_db(db_path) as conn:
         cursor = conn.execute("SELECT created_at FROM runs WHERE id = ?;", (run_id,))
         row = cursor.fetchone()
         if row:
@@ -45,7 +45,7 @@ def save_run(
 def get_run(run_id: str, db_path: Path | str | None = None) -> RunState | None:
     """Retrieve RunState by run ID, restoring logs from log store."""
     path = init_db(db_path)
-    with sqlite3.connect(path) as conn:
+    with get_db(db_path) as conn:
         cursor = conn.execute("SELECT state_json FROM runs WHERE id = ?;", (run_id,))
         row = cursor.fetchone()
         if not row:
@@ -71,7 +71,7 @@ def list_runs(
 ) -> list[tuple[str, RunState]]:
     """List most recently updated runs up to limit."""
     path = init_db(db_path)
-    with sqlite3.connect(path) as conn:
+    with get_db(db_path) as conn:
         cursor = conn.execute(
             """
             SELECT id, state_json FROM runs
@@ -101,7 +101,7 @@ def record_log(
     """Record an individual diagnostic log entry for a run."""
     path = init_db(db_path)
     ts = now if now is not None else time.time()
-    with sqlite3.connect(path) as conn:
+    with get_db(db_path) as conn:
         conn.execute(
             """
             INSERT INTO run_logs (run_id, step, level, message, timestamp)
@@ -117,7 +117,7 @@ def get_run_logs(
 ) -> list[dict]:
     """Retrieve detailed log entries for a run in chronological order."""
     path = init_db(db_path)
-    with sqlite3.connect(path) as conn:
+    with get_db(db_path) as conn:
         cursor = conn.execute(
             """
             SELECT step, level, message, timestamp FROM run_logs

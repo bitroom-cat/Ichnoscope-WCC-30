@@ -130,6 +130,10 @@ class Settings(BaseModel):
     use_stub_github: bool = False
     use_stub_llm: bool = False
 
+    # Storage & Database
+    turso_database_url: str | None = None
+    turso_auth_token: SecretStr | None = None
+
     # Severity thresholds
     p1_users: int = 50
     p1_events: int = 100
@@ -251,6 +255,7 @@ class Settings(BaseModel):
             "p1_events": self.p1_events,
             "p2_users": self.p2_users,
             "p2_events": self.p2_events,
+            "turso_database": "configured" if self.turso_database_url else "local_sqlite",
             "usable_providers": [p.name for p in self.llm_providers()],
         }
 
@@ -261,6 +266,10 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     github_token = _parse_secret(env.get("GITHUB_TOKEN"))
     github_repository = _parse_str(env.get("GITHUB_REPOSITORY"))
     sentry_client_secret = _parse_secret(env.get("SENTRY_CLIENT_SECRET"))
+
+    # Database & Storage (Turso libSQL or Local SQLite)
+    turso_database_url = _parse_str(env.get("TURSO_DATABASE_URL") or env.get("TURSO_DB_URL") or env.get("LIBSQL_URL"))
+    turso_auth_token = _parse_secret(env.get("TURSO_AUTH_TOKEN") or env.get("TURSO_TOKEN") or env.get("LIBSQL_AUTH_TOKEN"))
 
     # Validate GITHUB_REPOSITORY format if set
     if github_repository is not None:
@@ -319,6 +328,8 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         p1_events=p1_events,
         p2_users=p2_users,
         p2_events=p2_events,
+        turso_database_url=turso_database_url,
+        turso_auth_token=turso_auth_token,
         llm_chain=llm_chain,
     )
     object.__setattr__(settings, "_raw_env", dict(env))

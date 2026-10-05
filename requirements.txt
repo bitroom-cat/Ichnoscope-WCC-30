@@ -21,7 +21,8 @@ google-generativeai>=0.7.0
 groq>=0.9.0
 openai>=1.35.0
 
-# Storage & Persistence (SQLite dedupe + Postgres dashboard store)
+# Storage & Persistence (SQLite / Turso libSQL dedupe + dashboard store)
+libsql-client>=0.3.0
 aiosqlite>=0.20.0
 sqlalchemy>=2.0.30
 psycopg2-binary>=2.9.9

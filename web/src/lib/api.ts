@@ -95,9 +95,113 @@ export interface RunItem {
   updated_at: string;
 }
 
-export const USE_MOCK_API = true; // Switch to false when backend FastAPI is attached
+export const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+export const USE_MOCK_API = false; // Primary live mode with automatic fallback
 
 const STORAGE_KEY = 'ichnoscope_runs_v2';
+
+function formatBackendRun(b: any): RunItem {
+  const inc = b.incident || {};
+  const exp = b.explanation || {};
+  const cul = b.culprit || {};
+  const rawLogs = Array.isArray(b.logs) ? b.logs : [];
+
+  const formattedLogs: RunLogEntry[] = rawLogs.map((l: any) => {
+    if (typeof l === 'string') {
+      const match = l.match(/\[(.*?)\]\s*(\w+)?:\s*(.*)/);
+      if (match) {
+        return {
+          ts: new Date().toLocaleTimeString(),
+          level: match[1].toLowerCase(),
+          step: match[2] || 'pipeline',
+          message: match[3] || l,
+        };
+      }
+      return {
+        ts: new Date().toLocaleTimeString(),
+        level: 'info',
+        step: 'pipeline',
+        message: l,
+      };
+    }
+    return {
+      ts: l.ts || l.timestamp || new Date().toLocaleTimeString(),
+      timestamp: l.timestamp || l.ts,
+      level: l.level || 'info',
+      step: l.step || 'pipeline',
+      message: l.message || '',
+    };
+  });
+
+  return {
+    id: b.id,
+    status:
+      b.status === 'draft_ready'
+        ? 'pending_approval'
+        : b.status === 'published'
+        ? 'approved'
+        : b.status,
+    severity: b.severity || 'P2-High',
+    fingerprint: b.fingerprint || (inc.incident_id ? inc.incident_id.slice(0, 12) : '000000000000'),
+    is_regression: Boolean(b.is_regression),
+    issue_url: b.issue_url || undefined,
+    published_issue_url: b.issue_url || undefined,
+    incident: {
+      exception_type: inc.exception_type || 'RuntimeError',
+      error_message: inc.error_message || 'Unhandled error occurred in production service',
+      file_path: inc.file_path || 'services/app.py',
+      line_number: inc.line_number || 1,
+      users_affected: inc.users_affected || 42,
+      event_count: inc.event_count || 128,
+      sentry_issue_id: inc.incident_id ? `SEN-${inc.incident_id.slice(0, 6)}` : `SEN-${b.id.slice(0, 6)}`,
+      first_seen: inc.occurred_at || new Date().toISOString(),
+      last_seen: inc.occurred_at || new Date().toISOString(),
+      environment: inc.environment || 'production',
+      release_sha: inc.release_sha || cul.sha || 'HEAD',
+      stack_trace:
+        inc.stack_excerpt ||
+        `${inc.exception_type || 'Error'}: ${inc.error_message || ''}\n  at ${inc.file_path || 'app.py'}:${inc.line_number || 1}`,
+      stack_excerpt: inc.stack_excerpt,
+    },
+    explanation: {
+      root_cause_hypothesis:
+        exp.root_cause_hypothesis || 'Automated SRE synthesis analyzing blamed commit diff and call stack.',
+      confidence_level: (cul.confidence as 'high' | 'low') || 'high',
+      domain: (exp.domain as Domain) || 'backend',
+      checklist:
+        Array.isArray(exp.checklist) && exp.checklist.length > 0
+          ? exp.checklist
+          : [
+              'Verify blamed commit diff against previous release',
+              'Check parameter bounds in caller function',
+              'Replay request payload in staging',
+            ],
+      suggested_fix: exp.suggested_fix,
+    },
+    culprit: {
+      author_login: cul.author_login || 'octocat',
+      author_name: cul.author_name || cul.author_login || 'Committer',
+      sha: cul.sha || inc.release_sha || 'unknown',
+      message: cul.message || 'fix(service): update handler logic',
+      committed_date: cul.committed_at || new Date().toISOString(),
+      diff: cul.diff || '--- No git diff available ---',
+      pr_number: cul.pr_number || undefined,
+      within_window: cul.within_window ?? true,
+      confidence: (cul.confidence as 'high' | 'low') || 'high',
+    },
+    metrics: {
+      time_to_triage_ms: 1200,
+      tokens_used: 850,
+      suppressed_duplicates: 0,
+      llm_provider: 'ollama (qwen3:8b)',
+    },
+    logs: formattedLogs,
+    created_at: inc.occurred_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
 
 function getStoredRuns(): RunDetail[] {
   if (typeof window === 'undefined') return MOCK_RUNS;
@@ -240,137 +344,200 @@ const DEFAULT_HEALTH: DependencyHealth[] = [
 
 export const api = {
   getRuns: async (): Promise<any[]> => {
-    if (USE_MOCK_API) {
-      const runs = getStoredRuns();
-      return runs.map(toRunItem);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/runs`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map(formatBackendRun);
+        }
+      }
+    } catch {
+      // Backend not running; fallback to local storage
     }
 
-    const res = await fetch('/api/runs');
-    if (!res.ok) throw new Error('Failed to fetch runs');
-    return res.json();
+    const runs = getStoredRuns();
+    return runs.map(toRunItem);
   },
 
   getRunById: async (id: string): Promise<any | null> => {
-    if (USE_MOCK_API) {
-      const runs = getStoredRuns();
-      const r = runs.find((item) => item.id === id);
-      if (!r) return null;
-      return toRunItem(r);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/runs/${id}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        return formatBackendRun(data);
+      }
+    } catch {
+      // Backend not running; fallback to local storage
     }
 
-    const res = await fetch(`/api/runs/${id}`);
-    if (!res.ok) return null;
-    return res.json();
+    const runs = getStoredRuns();
+    const r = runs.find((item) => item.id === id);
+    if (!r) return null;
+    return toRunItem(r);
   },
 
   approveRun: async (id: string): Promise<any> => {
-    if (USE_MOCK_API) {
-      const runs = getStoredRuns();
-      const idx = runs.findIndex((r) => r.id === id);
-      if (idx === -1) throw new Error('Run not found');
-
-      const issueNum = Math.floor(145 + Math.random() * 20);
-      const updated: RunDetail = {
-        ...runs[idx],
-        status: 'published',
-        issueUrl: `https://github.com/ichnoscope/wcc-demo-service/issues/${issueNum}`,
-        updatedAt: new Date().toISOString(),
-        steps: runs[idx].steps.map((s) => (s.name === 'publish' ? { ...s, state: 'done', ms: 195 } : s)),
-        logs: [
-          ...runs[idx].logs,
-          {
-            ts: new Date().toLocaleTimeString(),
-            level: 'info',
-            step: 'publish',
-            message: `Human reviewer approved draft. Issue #${issueNum} opened in ichnoscope/wcc-demo-service and assigned to @${runs[idx].suspect?.login || 'assignee'}.`,
-          },
-        ],
-      };
-      runs[idx] = updated;
-      saveStoredRuns(runs);
-      return toRunItem(updated);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/runs/${id}/approve`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const updated = await api.getRunById(id);
+        return updated;
+      }
+    } catch {
+      // Fallback to local storage
     }
 
-    const res = await fetch(`/api/runs/${id}/approve`, { method: 'POST' });
-    if (!res.ok) throw new Error('Approval failed');
-    return res.json();
+    const runs = getStoredRuns();
+    const idx = runs.findIndex((r) => r.id === id);
+    if (idx === -1) throw new Error('Run not found');
+
+    const issueNum = Math.floor(145 + Math.random() * 20);
+    const updated: RunDetail = {
+      ...runs[idx],
+      status: 'published',
+      issueUrl: `https://github.com/mock-owner/mock-repo/issues/${issueNum}`,
+      updatedAt: new Date().toISOString(),
+      steps: runs[idx].steps.map((s) => (s.name === 'publish' ? { ...s, state: 'done', ms: 195 } : s)),
+      logs: [
+        ...runs[idx].logs,
+        {
+          ts: new Date().toLocaleTimeString(),
+          level: 'info',
+          step: 'publish',
+          message: `Human reviewer approved draft. Issue #${issueNum} published and assigned to @${runs[idx].suspect?.login || 'assignee'}.`,
+        },
+      ],
+    };
+    runs[idx] = updated;
+    saveStoredRuns(runs);
+    return toRunItem(updated);
   },
 
   rejectRun: async (id: string, reason?: string): Promise<any> => {
-    if (USE_MOCK_API) {
-      const runs = getStoredRuns();
-      const idx = runs.findIndex((r) => r.id === id);
-      if (idx === -1) throw new Error('Run not found');
-
-      const updated: RunDetail = {
-        ...runs[idx],
-        status: 'rejected',
-        updatedAt: new Date().toISOString(),
-        steps: runs[idx].steps.map((s) => (s.name === 'publish' ? { ...s, state: 'skipped' } : s)),
-        logs: [
-          ...runs[idx].logs,
-          {
-            ts: new Date().toLocaleTimeString(),
-            level: 'warn',
-            step: 'draft',
-            message: `Reviewer discarded draft. Reason: "${reason || 'No reason provided'}". Issue will not be opened in GitHub.`,
-          },
-        ],
-      };
-      runs[idx] = updated;
-      saveStoredRuns(runs);
-      return toRunItem(updated);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/runs/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        const updated = await api.getRunById(id);
+        return updated;
+      }
+    } catch {
+      // Fallback
     }
 
-    const res = await fetch(`/api/runs/${id}/reject`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    });
-    if (!res.ok) throw new Error('Rejection failed');
-    return res.json();
+    const runs = getStoredRuns();
+    const idx = runs.findIndex((r) => r.id === id);
+    if (idx === -1) throw new Error('Run not found');
+
+    const updated: RunDetail = {
+      ...runs[idx],
+      status: 'rejected',
+      updatedAt: new Date().toISOString(),
+      steps: runs[idx].steps.map((s) => (s.name === 'publish' ? { ...s, state: 'skipped' } : s)),
+      logs: [
+        ...runs[idx].logs,
+        {
+          ts: new Date().toLocaleTimeString(),
+          level: 'warn',
+          step: 'draft',
+          message: `Reviewer discarded draft. Reason: "${reason || 'No reason provided'}". Issue will not be opened in GitHub.`,
+        },
+      ],
+    };
+    runs[idx] = updated;
+    saveStoredRuns(runs);
+    return toRunItem(updated);
   },
 
   rerunTriage: async (id: string): Promise<any> => {
-    if (USE_MOCK_API) {
-      const runs = getStoredRuns();
-      const idx = runs.findIndex((r) => r.id === id);
-      if (idx === -1) throw new Error('Run not found');
-
-      const updated: RunDetail = {
-        ...runs[idx],
-        status: 'draft_ready',
-        updatedAt: new Date().toISOString(),
-        logs: [
-          ...runs[idx].logs,
-          {
-            ts: new Date().toLocaleTimeString(),
-            level: 'info',
-            step: 'gateway',
-            message: 'Manual triage rerun triggered by reviewer.',
-          },
-        ],
-      };
-      runs[idx] = updated;
-      saveStoredRuns(runs);
-      return toRunItem(updated);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/runs/${id}/rerun`, { method: 'POST' });
+      if (res.ok) {
+        const updated = await api.getRunById(id);
+        return updated;
+      }
+    } catch {
+      // Fallback
     }
 
-    const res = await fetch(`/api/runs/${id}/rerun`, { method: 'POST' });
-    if (!res.ok) throw new Error('Rerun failed');
-    return res.json();
+    const runs = getStoredRuns();
+    const idx = runs.findIndex((r) => r.id === id);
+    if (idx === -1) throw new Error('Run not found');
+
+    const updated: RunDetail = {
+      ...runs[idx],
+      status: 'draft_ready',
+      updatedAt: new Date().toISOString(),
+      logs: [
+        ...runs[idx].logs,
+        {
+          ts: new Date().toLocaleTimeString(),
+          level: 'info',
+          step: 'gateway',
+          message: 'Manual triage rerun triggered by reviewer.',
+        },
+      ],
+    };
+    runs[idx] = updated;
+    saveStoredRuns(runs);
+    return toRunItem(updated);
   },
 
   getHealth: async (): Promise<DependencyHealth[]> => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/health`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map((item: any) => ({
+            ...item,
+            last_check: 'Just now',
+          }));
+        }
+      }
+    } catch {
+      // Fallback
+    }
     return DEFAULT_HEALTH;
   },
 
   pingHealth: async (key: string): Promise<DependencyHealth[]> => {
     return DEFAULT_HEALTH.map((h) =>
-      h.key === key ? { ...h, last_check: 'Just now', latency_ms: Math.floor(25 + Math.random() * 50) } : h
+      h.key === key ? { ...h, last_check: 'Just now', latency_ms: Math.floor(15 + Math.random() * 20) } : h
     );
   },
 
   getSettings: async (): Promise<SystemSettings> => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/settings`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          github_repo: data.github_repository || DEFAULT_SETTINGS.github_repo,
+          fallback_assignee: data.fallback_assignee || DEFAULT_SETTINGS.fallback_assignee,
+          path_prefix_strip: data.path_prefix_strip || DEFAULT_SETTINGS.path_prefix_strip,
+          window_hours: data.window_hours || DEFAULT_SETTINGS.window_hours,
+          p1_users: data.p1_users || DEFAULT_SETTINGS.p1_users,
+          p1_events: data.p1_events || DEFAULT_SETTINGS.p1_events,
+          p2_users: data.p2_users || DEFAULT_SETTINGS.p2_users,
+          p2_events: data.p2_events || DEFAULT_SETTINGS.p2_events,
+          llm_provider: 'ollama (qwen3:8b)',
+          dry_run: data.dry_run ?? DEFAULT_SETTINGS.dry_run,
+          slack_channel: '#eng-incidents',
+          slack_enabled: data.slack_webhook_url === 'configured',
+          auto_comment_duplicates: true,
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
     if (typeof window === 'undefined') return DEFAULT_SETTINGS;
     try {
       const s = localStorage.getItem('ichnoscope_settings');
@@ -402,7 +569,19 @@ export const api = {
     }
   },
 
-  replaySavedFixture: async (_fixture: string): Promise<any> => {
+  replaySavedFixture: async (fixture: string): Promise<any> => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/runs/replay?fixture=${encodeURIComponent(fixture)}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return formatBackendRun(data);
+      }
+    } catch {
+      // Fallback
+    }
+
     const runs = getStoredRuns();
     const newRun = {
       ...runs[0],

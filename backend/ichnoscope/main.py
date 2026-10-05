@@ -22,7 +22,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +51,7 @@ def healthz() -> dict[str, bool]:
 
 
 @app.post("/webhook/sentry")
+@app.post("/api/webhook/sentry")
 async def sentry_webhook(
     request: Request,
     bg: BackgroundTasks,
@@ -61,8 +62,11 @@ async def sentry_webhook(
     settings = get_settings()
 
     secret = settings.sentry_client_secret.get_secret_value() if settings.sentry_client_secret else None
-    if not verify_signature(body, sentry_hook_signature, secret):
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    if secret:
+        if not verify_signature(body, sentry_hook_signature, secret):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    elif sentry_hook_signature:
+        logger.warning("Received signature '%s' but SENTRY_CLIENT_SECRET is not configured", sentry_hook_signature)
 
     try:
         payload = json.loads(body.decode("utf-8"))

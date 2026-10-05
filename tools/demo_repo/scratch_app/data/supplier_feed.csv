@@ -1,0 +1,5 @@
+sku,name,quantity,vendor,lead_days
+SKU-IN-STOCK,Ergonomic Office Chair,45,FurniCorp,3
+SKU-WIRELESS-MOUSE,Precision Wireless Mouse,80,TechLogistics,2
+SKU-DESK-MAT,Leather Desk Blotter,25,CraftStudio,5
+SKU-BACKORDER,Solid Walnut Standing Desk,N/A,NordicWood,14

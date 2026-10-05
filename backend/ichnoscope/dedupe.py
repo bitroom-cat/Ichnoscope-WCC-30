@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from ichnoscope.db import get_db, init_db as db_init
 from ichnoscope.models import Incident
 
 DEFAULT_DB_FILE: str = "ichnoscope.db"
@@ -39,24 +40,9 @@ def fingerprint(incident: Incident) -> str:
     )
 
 
-def init_db(db_path: Path | str | None = None) -> Path:
-    """Initialize SQLite seen table with schema and return path."""
-    path = Path(db_path or DEFAULT_DB_FILE)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS seen (
-              fp              TEXT PRIMARY KEY,
-              issue_number    INTEGER,
-              count           INTEGER NOT NULL DEFAULT 1,
-              first_seen      REAL NOT NULL,
-              last_seen       REAL NOT NULL,
-              last_comment_at REAL
-            );
-            """
-        )
-    return path
+def init_db(db_path: Path | str | None = None) -> Path | str:
+    """Initialize deduplication database schema and return path/target."""
+    return db_init(db_path)
 
 
 def claim(fp: str, db_path: Path | str | None = None, now: float | None = None) -> bool:
@@ -64,7 +50,7 @@ def claim(fp: str, db_path: Path | str | None = None, now: float | None = None) 
     path = init_db(db_path)
     ts = now if now is not None else time.time()
     try:
-        with sqlite3.connect(path) as conn:
+        with get_db(db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO seen (fp, count, first_seen, last_seen, last_comment_at)

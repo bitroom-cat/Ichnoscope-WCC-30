@@ -1,0 +1,5 @@
+{
+  "dev_a": { "name": "bitroom-cat", "email": "cometosatyam2@gmail.com", "has_github_account": true },
+  "dev_b": { "name": "vanshikarana06", "email": "vanshikarana06@users.noreply.github.com", "has_github_account": true },
+  "dev_c": { "name": "Ravi Menon", "email": "ravi.menon@example.invalid", "has_github_account": false }
+}

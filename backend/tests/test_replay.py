@@ -5,8 +5,11 @@ from pathlib import Path
 from ichnoscope.replay import replay_fixture
 
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+
+
 def test_replay_existing_fixture(tmp_path: Path, capsys):
-    fixture = Path("backend/fixtures/bug1_keyerror_payment.json")
+    fixture = FIXTURES_DIR / "bug1_keyerror_payment.json"
     db_file = str(tmp_path / "replay_test.db")
 
     code = replay_fixture(fixture, dry_run=True, db_path=db_file)
