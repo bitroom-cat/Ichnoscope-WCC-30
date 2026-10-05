@@ -103,8 +103,25 @@ class TursoConnection:
         raw_rows = result.get("rows", [])
         rows = []
         for r in raw_rows:
-            row_tuple = tuple(col.get("value") for col in r)
-            rows.append(row_tuple)
+            parsed_cols = []
+            for col in r:
+                c_type = col.get("type")
+                val = col.get("value")
+                if c_type == "null" or val is None:
+                    parsed_cols.append(None)
+                elif c_type == "integer":
+                    try:
+                        parsed_cols.append(int(val))
+                    except (ValueError, TypeError):
+                        parsed_cols.append(val)
+                elif c_type == "float":
+                    try:
+                        parsed_cols.append(float(val))
+                    except (ValueError, TypeError):
+                        parsed_cols.append(val)
+                else:
+                    parsed_cols.append(val)
+            rows.append(tuple(parsed_cols))
         affected = result.get("affected_row_count", 0)
         return TursoCursor(rows, rowcount=affected)
 

@@ -65,8 +65,8 @@ def claim(fp: str, db_path: Path | str | None = None, now: float | None = None) 
 
 def lookup(fp: str, db_path: Path | str | None = None) -> SeenRow | None:
     """Look up an existing fingerprint record in SQLite."""
-    path = init_db(db_path)
-    with sqlite3.connect(path) as conn:
+    init_db(db_path)
+    with get_db(db_path) as conn:
         cursor = conn.execute(
             """
             SELECT fp, issue_number, count, first_seen, last_seen, last_comment_at
@@ -95,9 +95,9 @@ def bump(
     interval_seconds: float = DEFAULT_COMMENT_INTERVAL_S,
 ) -> tuple[int, bool]:
     """Increment event count on repeat and report whether a new comment is due."""
-    path = init_db(db_path)
+    init_db(db_path)
     ts = now if now is not None else time.time()
-    with sqlite3.connect(path) as conn:
+    with get_db(db_path) as conn:
         cursor = conn.execute(
             "SELECT count, last_comment_at FROM seen WHERE fp = ?;",
             (fp,),
@@ -111,7 +111,8 @@ def bump(
             )
             return (1, False)
 
-        cur_count, last_comment = row
+        cur_count = int(row[0])
+        last_comment = float(row[1]) if row[1] is not None else None
         new_count = cur_count + 1
         comment_due = last_comment is None or (ts - last_comment >= interval_seconds)
 
@@ -131,8 +132,8 @@ def bump(
 
 def attach(fp: str, issue_number: int, db_path: Path | str | None = None) -> None:
     """Associate created GitHub issue number with fingerprint."""
-    path = init_db(db_path)
-    with sqlite3.connect(path) as conn:
+    init_db(db_path)
+    with get_db(db_path) as conn:
         conn.execute(
             "UPDATE seen SET issue_number = ? WHERE fp = ?;",
             (issue_number, fp),
@@ -141,7 +142,7 @@ def attach(fp: str, issue_number: int, db_path: Path | str | None = None) -> Non
 
 def delete_record(fp: str, db_path: Path | str | None = None) -> bool:
     """Delete a fingerprint record, used when a closed issue regresses."""
-    path = init_db(db_path)
-    with sqlite3.connect(path) as conn:
+    init_db(db_path)
+    with get_db(db_path) as conn:
         cursor = conn.execute("DELETE FROM seen WHERE fp = ?;", (fp,))
         return cursor.rowcount > 0
