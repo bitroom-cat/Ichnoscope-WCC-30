@@ -42,6 +42,8 @@
 ## 🎬 Demo
 
 > ### 🚀 Live deployment: **[ichnoscope-wcc-30.vercel.app](https://ichnoscope-wcc-30.vercel.app/)**
+> ### 🚀 Demo website for trigering errors: **[https://ichnoscope-demo-we-app-1.onrender.com/](https://ichnoscope-demo-we-app-1.onrender.com/)**
+> 
 > ### ▶️ Video walkthrough: **[Watch on YouTube](https://www.youtube.com/watch?v=NsmXi0lnl7Y)**
 
 <p align="center">
